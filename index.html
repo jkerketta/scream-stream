@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microphone Volume Controller</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        #pitchVisualizer {
+            border: 2px solid #333;
+            background-color: #000;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        #player {
+            min-height: 619px;
+            background-color: #000;
+            border-radius: 8px;
+        }
+
+        .status {
+            font-size: 16px;
+            color: #666;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            margin-top: 10px;
+        }
+
+        .sensitivity-control {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-family: Arial, sans-serif;
+        }
+
+        .sensitivity-control label {
+            font-size: 14px;
+            color: #333;
+        }
+
+        .sensitivity-control input[type="range"] {
+            width: 300px;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+        }
+
+        .sensitivity-control input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+
+        .sensitivity-value {
+            font-weight: bold;
+            color: #4CAF50;
+            min-width: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div id="player"></div>
+
+    <div>
+        <canvas id="pitchVisualizer" width="1100" height="200"></canvas>
+        <div class="sensitivity-control">
+            <label for="sensitivitySlider">Sensitivity:</label>
+            <input type="range" id="sensitivitySlider" min="1" max="10" value="5" step="0.5">
+            <span class="sensitivity-value" id="sensitivityValue">5.0</span>
+        </div>
+        <div class="status" id="status">Requesting microphone access...</div>
+    </div>
+
+    <script>
+        // Load the IFrame Player API asynchronously
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        let player;
+        let audioContext;
+        let analyser;
+        let microphone;
+        let mediaStream;
+        let dataArray;
+        let timeDataArray;
+        let bufferLength;
+        let animationFrame;
+        let pitchVisualizerCanvas;
+        let pitchVisualizerCtx;
+        let sensitivity = 5.0;
+        let smoothedVolume = 0;
+        const smoothingFactor = 0.85; // Higher = more smoothing (volume holds better)
+
+        // Called automatically when the API is ready (must be in global scope)
+        window.onYouTubeIframeAPIReady = function() {
+            console.log('YouTube API ready, initializing player...');
+            try {
+                const playerElement = document.getElementById('player');
+                if (!playerElement) {
+                    console.error('Player element not found!');
+                    return;
+                }
+                
+                player = new YT.Player('player', {
+                    height: '619',
+                    width: '1100',
+                    videoId: 'Oo9EbArcQ1c', // change this to any video ID
+                    playerVars: {
+                        'playsinline': 1,
+                        'autoplay': 0,
+                        'controls': 1,
+                        'enablejsapi': 1,
+                        'origin': window.location.origin
+                    },
+                    events: {
+                        'onReady': function(event) {
+                            console.log('YouTube player ready!');
+                            const statusEl = document.getElementById('status');
+                            if (statusEl && !statusEl.textContent.includes('active')) {
+                                statusEl.textContent = 'YouTube player ready - Microphone active';
+                            }
+                        },
+                        'onStateChange': function(event) {
+                            console.log('YouTube player state:', event.data);
+                        },
+                        'onError': function(error) {
+                            console.error('YouTube player error:', error);
+                            const statusEl = document.getElementById('status');
+                            if (statusEl) {
+                                statusEl.textContent = 'Error loading YouTube video. Check console.';
+                                statusEl.style.color = '#ff0000';
+                            }
+                        }
+                    }
+                });
+                console.log('Player object created:', player);
+            } catch (error) {
+                console.error('Error creating YouTube player:', error);
+                const statusEl = document.getElementById('status');
+                if (statusEl) {
+                    statusEl.textContent = 'Error initializing YouTube player: ' + error.message;
+                    statusEl.style.color = '#ff0000';
+                }
+            }
+        };
+
+        async function initAudio() {
+            try {
+                console.log('Requesting microphone access...');
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                console.log('Microphone access granted!');
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = 'Microphone active - Loudness controls volume';
+                statusEl.style.color = '#00aa00';
+
+                // Create audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(mediaStream);
+
+                // Configure analyser
+                analyser.fftSize = 4096; // Larger FFT for better frequency resolution
+                analyser.smoothingTimeConstant = 0.3;
+                bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+                timeDataArray = new Float32Array(analyser.fftSize);
+
+                // Connect microphone to analyser
+                microphone.connect(analyser);
+
+                // Initialize pitch visualizer
+                pitchVisualizerCanvas = document.getElementById('pitchVisualizer');
+                pitchVisualizerCtx = pitchVisualizerCanvas.getContext('2d');
+
+                // Start volume/loudness detection and visualization
+                detectVolume();
+
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = `Error: ${error.message}`;
+                statusEl.style.color = '#ff0000';
+            }
+        }
+
+        function detectVolume() {
+            function update() {
+                if (!audioContext) return;
+                
+                animationFrame = requestAnimationFrame(update);
+
+                // Get time domain data for volume/loudness detection
+                analyser.getFloatTimeDomainData(timeDataArray);
+
+                // Calculate RMS (Root Mean Square) for volume/loudness
+                let sum = 0;
+                for (let i = 0; i < timeDataArray.length; i++) {
+                    const normalized = timeDataArray[i];
+                    sum += normalized * normalized;
+                }
+                const rms = Math.sqrt(sum / timeDataArray.length);
+
+                // Map RMS to volume percentage (0-100%) with sensitivity adjustment
+                // Sensitivity multiplier: higher value = more sensitive
+                // RMS values typically range from 0 to ~0.3 for normal speech/screams
+                let volume = 0;
+                if (rms > 0.001) { // Minimum threshold to filter noise
+                    // Apply sensitivity multiplier to RMS before mapping
+                    // Sensitivity scale: 1-10, where 5.0 is default (1.0x multiplier)
+                    const sensitivityMultiplier = sensitivity / 5.0;
+                    const adjustedRms = Math.min(0.3, rms * sensitivityMultiplier);
+                    // Use exponential scaling: lower exponent = more sensitive
+                    // Adjust exponent based on sensitivity too
+                    const exponent = 0.6 - (sensitivity / 10.0 * 0.3); // Range: 0.3 to 0.6
+                    const normalizedRms = adjustedRms / 0.3;
+                    volume = Math.min(100, Math.round(Math.pow(normalizedRms, exponent) * 100));
+                }
+
+                // Apply smoothing to prevent volume from dropping too quickly
+                smoothedVolume = smoothedVolume * smoothingFactor + volume * (1 - smoothingFactor);
+                const finalVolume = Math.round(smoothedVolume);
+
+                // Continuously update YouTube video volume based on loudness
+                if (player && typeof player.setVolume === 'function') {
+                    try {
+                        player.setVolume(finalVolume);
+                    } catch (error) {
+                        console.error('Error setting volume:', error);
+                    }
+                }
+
+                // Draw loudness visualizer
+                drawLoudnessVisualizer(finalVolume);
+            }
+
+            update();
+        }
+
+        function drawLoudnessVisualizer(volumePercent) {
+            const canvas = pitchVisualizerCanvas;
+            const ctx = pitchVisualizerCtx;
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Calculate position on the bar (0 to 1) based on volume percentage
+            const position = volumePercent / 100;
+
+            // Draw bar background
+            const barHeight = 40;
+            const barY = (height - barHeight) / 2;
+            const barMargin = 20;
+            const barWidth = width - (barMargin * 2);
+            
+            ctx.fillStyle = '#333';
+            ctx.fillRect(barMargin, barY, barWidth, barHeight);
+
+            // Draw filled portion based on volume/loudness
+            const fillWidth = barWidth * position;
+            
+            // Gradient color based on volume (green to yellow to red)
+            const gradient = ctx.createLinearGradient(barMargin, 0, barMargin + barWidth, 0);
+            gradient.addColorStop(0, '#00ff00'); // Green - quiet
+            gradient.addColorStop(0.5, '#ffff00'); // Yellow - medium
+            gradient.addColorStop(1, '#ff0000'); // Red - loud
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(barMargin, barY, fillWidth, barHeight);
+
+            // Draw border
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barMargin, barY, barWidth, barHeight);
+
+            // Always draw indicator
+            const indicatorX = barMargin + (barWidth * position);
+            ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#666666';
+            ctx.fillRect(indicatorX - 2, barY - 10, 4, barHeight + 20);
+
+            // Draw volume label above indicator
+            ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#888888';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${volumePercent}%`, indicatorX, barY - 15);
+
+            // Draw labels at ends
+            ctx.fillStyle = '#888';
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('Quiet (0%)', barMargin, height - 10);
+            ctx.textAlign = 'right';
+            ctx.fillText('Loud (100%)', width - barMargin, height - 10);
+        }
+
+        // Cleanup function
+        function cleanup() {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+            }
+        }
+
+        // Initialize slider control when DOM is ready
+        function initSlider() {
+            const sensitivitySlider = document.getElementById('sensitivitySlider');
+            const sensitivityValue = document.getElementById('sensitivityValue');
+            
+            if (sensitivitySlider && sensitivityValue) {
+                sensitivitySlider.addEventListener('input', (e) => {
+                    sensitivity = parseFloat(e.target.value);
+                    sensitivityValue.textContent = sensitivity.toFixed(1);
+                    console.log('Sensitivity changed to:', sensitivity);
+                });
+                
+                // Also add change event for better compatibility
+                sensitivitySlider.addEventListener('change', (e) => {
+                    sensitivity = parseFloat(e.target.value);
+                    sensitivityValue.textContent = sensitivity.toFixed(1);
+                });
+                
+                console.log('Sensitivity slider initialized');
+            } else {
+                console.error('Sensitivity slider elements not found!');
+            }
+        }
+
+        // Initialize slider when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSlider);
+        } else {
+            initSlider();
+        }
+
+        // Initialize audio on page load
+        initAudio();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', cleanup);
+    </script>
+</body>
+</html>
