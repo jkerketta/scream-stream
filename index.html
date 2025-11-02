@@ -3,94 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Microphone Volume Controller</title>
-    <link rel="stylesheet" href="style.css">
+    <title>ScreamStream - Voice-Controlled YouTube Volume</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            flex-direction: column;
-            gap: 30px;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
         }
 
         #pitchVisualizer {
-            border: 2px solid #333;
-            background-color: #000;
-            border-radius: 8px;
-            margin-top: 20px;
+            border-radius: 12px;
         }
 
-        #player {
-            min-height: 619px;
-            background-color: #000;
-            border-radius: 8px;
+        #facecam {
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(76, 175, 80, 0.3);
         }
 
-        .status {
-            font-size: 16px;
-            color: #666;
-            text-align: center;
-            font-family: Arial, sans-serif;
-            margin-top: 10px;
-        }
-
-        .sensitivity-control {
-            margin-top: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-            font-family: Arial, sans-serif;
-        }
-
-        .sensitivity-control label {
-            font-size: 14px;
-            color: #333;
-        }
-
-        .sensitivity-control input[type="range"] {
-            width: 300px;
-            height: 6px;
-            border-radius: 3px;
-            background: #ddd;
-            outline: none;
-        }
-
-        .sensitivity-control input[type="range"]::-webkit-slider-thumb {
+        /* Custom slider styling */
+        input[type="range"] {
+            -webkit-appearance: none;
             appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #4CAF50;
+            background: transparent;
             cursor: pointer;
         }
 
-        .sensitivity-value {
-            font-weight: bold;
-            color: #4CAF50;
-            min-width: 40px;
+        input[type="range"]::-webkit-slider-track {
+            background: linear-gradient(to right, #10b981, #f59e0b, #ef4444);
+            height: 8px;
+            border-radius: 4px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            background: white;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            border: 2px solid #10b981;
+        }
+
+        input[type="range"]::-moz-range-track {
+            background: linear-gradient(to right, #10b981, #f59e0b, #ef4444);
+            height: 8px;
+            border-radius: 4px;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            background: white;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            border: 2px solid #10b981;
+            cursor: pointer;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
     </style>
 </head>
-<body>
-    <div id="player"></div>
-
-    <div>
-        <canvas id="pitchVisualizer" width="1100" height="200"></canvas>
-        <div class="sensitivity-control">
-            <label for="sensitivitySlider">Sensitivity:</label>
-            <input type="range" id="sensitivitySlider" min="1" max="10" value="5" step="0.5">
-            <span class="sensitivity-value" id="sensitivityValue">5.0</span>
+<body class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white overflow-x-hidden">
+    <div class="container mx-auto px-4 py-4 max-w-7xl">
+        <!-- Compact Header -->
+        <div class="text-center mb-4">
+            <h1 class="text-4xl font-bold gradient-text mb-1">ScreamStream</h1>
+            <p class="text-gray-400 text-sm">Control YouTube volume with your voice</p>
         </div>
-        <div class="status" id="status">Requesting microphone access...</div>
+
+        <!-- Main Content - Side by Side Layout -->
+        <div class="grid grid-cols-[850px_300px] gap-4">
+            <!-- Left: YouTube Player -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700/50">
+                <div class="relative rounded-xl overflow-hidden shadow-2xl" style="width: 100%; height: 619px;">
+                    <iframe id="youtubeFrame" 
+                            class="w-full h-full"
+                            src="https://www.youtube.com/embed/Oo9EbArcQ1c?enablejsapi=1&controls=1&rel=0&modestbranding=1"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen>
+                    </iframe>
+                </div>
+            </div>
+
+            <!-- Right: Facecam on top, Vertical Loudness Spectrum below -->
+            <div class="space-y-4">
+                <!-- Facecam Card -->
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700/50">
+                    <h2 class="text-sm font-semibold mb-2 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+                        Live Camera
+                    </h2>
+                    <div class="relative rounded-xl overflow-hidden bg-black">
+                        <video id="facecam" 
+                               autoplay 
+                               playsinline 
+                               muted
+                               class="w-full h-[180px] object-cover border-2 border-green-400/50">
+                        </video>
+                        <div class="absolute top-2 right-2 bg-red-500 rounded-full w-2 h-2 animate-pulse"></div>
+                    </div>
+                </div>
+
+                <!-- Vertical Loudness Spectrum Card -->
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700/50 flex-1">
+                    <h2 class="text-sm font-semibold mb-2 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        Loudness
+                    </h2>
+                    
+                    <div class="bg-black/50 rounded-xl p-3 mb-3 flex justify-center items-center" style="height: 400px;">
+                        <canvas id="pitchVisualizer" width="200" height="400" class="rounded-lg"></canvas>
+                    </div>
+
+                    <!-- Sensitivity Control - Compact -->
+                    <div class="bg-gray-700/30 rounded-xl p-3 mb-3">
+                        <label for="sensitivitySlider" class="block text-xs font-medium text-gray-300 mb-2">
+                            Sensitivity
+                        </label>
+                        <div class="flex flex-col items-center gap-2">
+                            <div class="flex items-center justify-between w-full text-xs text-gray-400 mb-1">
+                                <span>Low</span>
+                                <span class="text-lg font-bold text-green-400" id="sensitivityValue">5.0</span>
+                                <span>High</span>
+                            </div>
+                            <input type="range" 
+                                   id="sensitivitySlider" 
+                                   min="1" 
+                                   max="10" 
+                                   value="5" 
+                                   step="0.5"
+                                   class="w-full">
+                        </div>
+                    </div>
+
+                    <!-- Status - Compact -->
+                    <div class="bg-gray-700/30 rounded-xl p-2">
+                        <div id="status" class="text-center text-xs text-gray-300">
+                            Requesting microphone access...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Load the IFrame Player API asynchronously
-        const tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        const firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-        let player;
         let audioContext;
         let analyser;
         let microphone;
@@ -103,98 +167,68 @@
         let pitchVisualizerCtx;
         let sensitivity = 5.0;
         let smoothedVolume = 0;
-        const smoothingFactor = 0.85; // Higher = more smoothing (volume holds better)
+        const smoothingFactor = 0.85;
 
-        // Called automatically when the API is ready (must be in global scope)
-        window.onYouTubeIframeAPIReady = function() {
-            console.log('YouTube API ready, initializing player...');
-            try {
-                const playerElement = document.getElementById('player');
-                if (!playerElement) {
-                    console.error('Player element not found!');
-                    return;
-                }
-                
-                player = new YT.Player('player', {
-                    height: '619',
-                    width: '1100',
-                    videoId: 'Oo9EbArcQ1c', // change this to any video ID
-                    playerVars: {
-                        'playsinline': 1,
-                        'autoplay': 0,
-                        'controls': 1,
-                        'enablejsapi': 1,
-                        'origin': window.location.origin
-                    },
-                    events: {
-                        'onReady': function(event) {
-                            console.log('YouTube player ready!');
-                            const statusEl = document.getElementById('status');
-                            if (statusEl && !statusEl.textContent.includes('active')) {
-                                statusEl.textContent = 'YouTube player ready - Microphone active';
-                            }
-                        },
-                        'onStateChange': function(event) {
-                            console.log('YouTube player state:', event.data);
-                        },
-                        'onError': function(error) {
-                            console.error('YouTube player error:', error);
-                            const statusEl = document.getElementById('status');
-                            if (statusEl) {
-                                statusEl.textContent = 'Error loading YouTube video. Check console.';
-                                statusEl.style.color = '#ff0000';
-                            }
-                        }
-                    }
-                });
-                console.log('Player object created:', player);
-            } catch (error) {
-                console.error('Error creating YouTube player:', error);
-                const statusEl = document.getElementById('status');
-                if (statusEl) {
-                    statusEl.textContent = 'Error initializing YouTube player: ' + error.message;
-                    statusEl.style.color = '#ff0000';
+        // Function to update YouTube volume via iframe postMessage
+        function updateYouTubeVolume(volume) {
+            const iframe = document.getElementById('youtubeFrame');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.postMessage(JSON.stringify({
+                        event: 'command',
+                        func: 'setVolume',
+                        args: [volume]
+                    }), '*');
+                } catch (error) {
+                    console.log('Could not set volume via postMessage');
                 }
             }
-        };
+        }
 
         async function initAudio() {
             try {
-                console.log('Requesting microphone access...');
-                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('Requesting microphone and camera access...');
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true, 
+                    video: { 
+                        width: 250, 
+                        height: 188,
+                        facingMode: 'user'
+                    } 
+                });
                 
-                console.log('Microphone access granted!');
+                console.log('Microphone and camera access granted!');
+                
+                const facecam = document.getElementById('facecam');
+                if (facecam && mediaStream) {
+                    facecam.srcObject = mediaStream;
+                    console.log('Facecam started');
+                }
+                
                 const statusEl = document.getElementById('status');
-                statusEl.textContent = 'Microphone active - Loudness controls volume';
-                statusEl.style.color = '#00aa00';
+                statusEl.innerHTML = '<span class="text-green-400">✓ Microphone and camera active - Loudness controls volume</span>';
 
-                // Create audio context
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioContext.createAnalyser();
                 microphone = audioContext.createMediaStreamSource(mediaStream);
 
-                // Configure analyser
-                analyser.fftSize = 4096; // Larger FFT for better frequency resolution
+                analyser.fftSize = 4096;
                 analyser.smoothingTimeConstant = 0.3;
                 bufferLength = analyser.frequencyBinCount;
                 dataArray = new Uint8Array(bufferLength);
                 timeDataArray = new Float32Array(analyser.fftSize);
 
-                // Connect microphone to analyser
                 microphone.connect(analyser);
 
-                // Initialize pitch visualizer
                 pitchVisualizerCanvas = document.getElementById('pitchVisualizer');
                 pitchVisualizerCtx = pitchVisualizerCanvas.getContext('2d');
 
-                // Start volume/loudness detection and visualization
                 detectVolume();
 
             } catch (error) {
                 console.error('Error accessing microphone:', error);
                 const statusEl = document.getElementById('status');
-                statusEl.textContent = `Error: ${error.message}`;
-                statusEl.style.color = '#ff0000';
+                statusEl.innerHTML = `<span class="text-red-400">✗ Error: ${error.message}</span>`;
             }
         }
 
@@ -204,10 +238,8 @@
                 
                 animationFrame = requestAnimationFrame(update);
 
-                // Get time domain data for volume/loudness detection
                 analyser.getFloatTimeDomainData(timeDataArray);
 
-                // Calculate RMS (Root Mean Square) for volume/loudness
                 let sum = 0;
                 for (let i = 0; i < timeDataArray.length; i++) {
                     const normalized = timeDataArray[i];
@@ -215,36 +247,19 @@
                 }
                 const rms = Math.sqrt(sum / timeDataArray.length);
 
-                // Map RMS to volume percentage (0-100%) with sensitivity adjustment
-                // Sensitivity multiplier: higher value = more sensitive
-                // RMS values typically range from 0 to ~0.3 for normal speech/screams
                 let volume = 0;
-                if (rms > 0.001) { // Minimum threshold to filter noise
-                    // Apply sensitivity multiplier to RMS before mapping
-                    // Sensitivity scale: 1-10, where 5.0 is default (1.0x multiplier)
+                if (rms > 0.001) {
                     const sensitivityMultiplier = sensitivity / 5.0;
                     const adjustedRms = Math.min(0.3, rms * sensitivityMultiplier);
-                    // Use exponential scaling: lower exponent = more sensitive
-                    // Adjust exponent based on sensitivity too
-                    const exponent = 0.6 - (sensitivity / 10.0 * 0.3); // Range: 0.3 to 0.6
+                    const exponent = 0.6 - (sensitivity / 10.0 * 0.3);
                     const normalizedRms = adjustedRms / 0.3;
                     volume = Math.min(100, Math.round(Math.pow(normalizedRms, exponent) * 100));
                 }
 
-                // Apply smoothing to prevent volume from dropping too quickly
                 smoothedVolume = smoothedVolume * smoothingFactor + volume * (1 - smoothingFactor);
                 const finalVolume = Math.round(smoothedVolume);
 
-                // Continuously update YouTube video volume based on loudness
-                if (player && typeof player.setVolume === 'function') {
-                    try {
-                        player.setVolume(finalVolume);
-                    } catch (error) {
-                        console.error('Error setting volume:', error);
-                    }
-                }
-
-                // Draw loudness visualizer
+                updateYouTubeVolume(finalVolume);
                 drawLoudnessVisualizer(finalVolume);
             }
 
@@ -257,60 +272,59 @@
             const width = canvas.width;
             const height = canvas.height;
 
-            // Clear canvas
-            ctx.fillStyle = '#1a1a1a';
+            ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, width, height);
 
-            // Calculate position on the bar (0 to 1) based on volume percentage
             const position = volumePercent / 100;
 
-            // Draw bar background
-            const barHeight = 40;
-            const barY = (height - barHeight) / 2;
-            const barMargin = 20;
-            const barWidth = width - (barMargin * 2);
+            // Vertical bar - centered horizontally
+            const barWidth = 60;
+            const barX = (width - barWidth) / 2;
+            const barMargin = 30;
+            const barHeight = height - (barMargin * 2);
             
-            ctx.fillStyle = '#333';
-            ctx.fillRect(barMargin, barY, barWidth, barHeight);
+            // Draw background bar
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(barX, barMargin, barWidth, barHeight);
 
-            // Draw filled portion based on volume/loudness
-            const fillWidth = barWidth * position;
+            // Calculate fill height from bottom (0% at bottom, 100% at top)
+            const fillHeight = barHeight * position;
             
-            // Gradient color based on volume (green to yellow to red)
-            const gradient = ctx.createLinearGradient(barMargin, 0, barMargin + barWidth, 0);
-            gradient.addColorStop(0, '#00ff00'); // Green - quiet
-            gradient.addColorStop(0.5, '#ffff00'); // Yellow - medium
-            gradient.addColorStop(1, '#ff0000'); // Red - loud
+            // Vertical gradient (green at bottom to red at top)
+            const gradient = ctx.createLinearGradient(barX, barMargin + barHeight, barX, barMargin);
+            gradient.addColorStop(0, '#10b981'); // Green - quiet (bottom)
+            gradient.addColorStop(0.5, '#f59e0b'); // Yellow - medium
+            gradient.addColorStop(1, '#ef4444'); // Red - loud (top)
             
             ctx.fillStyle = gradient;
-            ctx.fillRect(barMargin, barY, fillWidth, barHeight);
+            ctx.fillRect(barX, barMargin + barHeight - fillHeight, barWidth, fillHeight);
 
             // Draw border
-            ctx.strokeStyle = '#666';
+            ctx.strokeStyle = '#374151';
             ctx.lineWidth = 2;
-            ctx.strokeRect(barMargin, barY, barWidth, barHeight);
+            ctx.strokeRect(barX, barMargin, barWidth, barHeight);
 
-            // Always draw indicator
-            const indicatorX = barMargin + (barWidth * position);
-            ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#666666';
-            ctx.fillRect(indicatorX - 2, barY - 10, 4, barHeight + 20);
+            // Draw indicator line (horizontal line at current volume level)
+            const indicatorY = barMargin + barHeight - fillHeight;
+            ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#6b7280';
+            ctx.fillRect(barX - 8, indicatorY - 2, barWidth + 16, 4);
 
-            // Draw volume label above indicator
-            ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#888888';
-            ctx.font = 'bold 16px monospace';
+            // Draw volume label next to indicator
+            ctx.save();
+            ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#9ca3af';
+            ctx.font = 'bold 14px Inter, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${volumePercent}%`, indicatorX, barY - 15);
+            ctx.fillText(`${volumePercent}%`, width / 2, indicatorY - 8);
+            ctx.restore();
 
-            // Draw labels at ends
-            ctx.fillStyle = '#888';
-            ctx.font = '14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Quiet (0%)', barMargin, height - 10);
-            ctx.textAlign = 'right';
-            ctx.fillText('Loud (100%)', width - barMargin, height - 10);
+            // Draw labels at top and bottom
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Loud (100%)', width / 2, barMargin - 10);
+            ctx.fillText('Quiet (0%)', width / 2, height - barMargin + 15);
         }
 
-        // Cleanup function
         function cleanup() {
             if (animationFrame) {
                 cancelAnimationFrame(animationFrame);
@@ -323,7 +337,6 @@
             }
         }
 
-        // Initialize slider control when DOM is ready
         function initSlider() {
             const sensitivitySlider = document.getElementById('sensitivitySlider');
             const sensitivityValue = document.getElementById('sensitivityValue');
@@ -332,32 +345,22 @@
                 sensitivitySlider.addEventListener('input', (e) => {
                     sensitivity = parseFloat(e.target.value);
                     sensitivityValue.textContent = sensitivity.toFixed(1);
-                    console.log('Sensitivity changed to:', sensitivity);
                 });
                 
-                // Also add change event for better compatibility
                 sensitivitySlider.addEventListener('change', (e) => {
                     sensitivity = parseFloat(e.target.value);
                     sensitivityValue.textContent = sensitivity.toFixed(1);
                 });
-                
-                console.log('Sensitivity slider initialized');
-            } else {
-                console.error('Sensitivity slider elements not found!');
             }
         }
 
-        // Initialize slider when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initSlider);
         } else {
             initSlider();
         }
 
-        // Initialize audio on page load
         initAudio();
-
-        // Cleanup on page unload
         window.addEventListener('beforeunload', cleanup);
     </script>
 </body>
