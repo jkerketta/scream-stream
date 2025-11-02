@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <link rel="stylesheet" href="style.css">
+
+    <div id="player"></div>
+
+    <script>
+      // Load the IFrame Player API asynchronously
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      let player;
+
+      // Called automatically when the API is ready
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+          height: '619',
+          width: '1100',
+          videoId: 'Oo9EbArcQ1c', // change this to any video ID
+          playerVars: {
+            playsinline: 1
+          }
+        });
+      }
+    </script>
+
+    <div>
+      <p>Current Audio: </p>
+    </div>
+  </body>
+</html>
