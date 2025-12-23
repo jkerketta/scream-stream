@@ -8,31 +8,26 @@ cd "$PROJECT_DIR"
 echo "🔄 Resetting and restarting all servers..."
 echo ""
 
-# Stop existing processes
 echo "🛑 Stopping existing processes..."
 pkill -f "tongue_detection" 2>/dev/null
 pkill -f "http.server" 2>/dev/null
 sleep 2
 
-# Kill any processes on ports
 lsof -ti:8765,8000 2>/dev/null | xargs kill -9 2>/dev/null
 echo "✅ Ports cleared"
 
-# Clear old logs
 rm -f /tmp/tongue_detection.log /tmp/webserver.log 2>/dev/null
 
 echo ""
 echo "🚀 Starting fresh servers..."
 echo ""
 
-# Start head tilt detection server
 echo "📹 Starting head tilt detection server (port 8765)..."
 python3 tongue_detection_simple.py > /tmp/tongue_detection.log 2>&1 &
 DETECTION_PID=$!
 echo "   PID: $DETECTION_PID"
 sleep 3
 
-# Check if detection server started
 if ps -p $DETECTION_PID > /dev/null; then
     echo "   ✅ Detection server is running"
 else
@@ -40,7 +35,6 @@ else
     echo "   Check logs: tail -f /tmp/tongue_detection.log"
 fi
 
-# Start web server
 echo ""
 echo "🌐 Starting web server (port 8000)..."
 python3 -m http.server 8000 > /tmp/webserver.log 2>&1 &
@@ -48,7 +42,6 @@ WEB_PID=$!
 echo "   PID: $WEB_PID"
 sleep 1
 
-# Check if web server started
 if ps -p $WEB_PID > /dev/null; then
     echo "   ✅ Web server is running"
 else
