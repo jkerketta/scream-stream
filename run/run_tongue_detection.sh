@@ -8,13 +8,11 @@ cd "$PROJECT_DIR"
 echo "🚀 Starting Tongue Detection System..."
 echo ""
 
-# Check if Python is installed
 if ! command -v python3 &> /dev/null; then
     echo "❌ Python 3 is not installed. Please install Python 3 first."
     exit 1
 fi
 
-# Check if required packages are installed
 echo "📦 Checking dependencies..."
 python3 -c "import cv2, mediapipe, websockets" 2>/dev/null
 if [ $? -ne 0 ]; then
