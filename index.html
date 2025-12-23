@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>ScreamStream - Voice-Controlled YouTube Volume</title>
 
-    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- YouTube IFrame API (functionality) -->
     <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
@@ -32,7 +30,6 @@
             transform: scaleX(-1);
         }
 
-        /* Custom slider styling */
         input[type="range"] {
             -webkit-appearance: none;
             appearance: none;
@@ -83,15 +80,12 @@
 </head>
 <body class="min-h-screen text-white">
     <div class="container mx-auto px-4 py-6 max-w-7xl">
-        <!-- Header -->
         <div class="text-center mb-4">
             <h1 class="text-4xl font-bold gradient-text mb-1">ScreamStream</h1>
             <p class="text-gray-400 text-sm">Control YouTube volume with your voice — head-tilt for skip</p>
         </div>
 
-        <!-- Main Grid: left player, right controls -->
         <div class="grid gap-4 grid-cols-1 md:grid-cols-[1fr_320px] items-start">
-            <!-- LEFT: YouTube player + URL loader -->
             <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700/50">
                 <div class="relative rounded-xl overflow-hidden shadow-2xl" style="width:100%; aspect-ratio: 16/9;">
                     <iframe id="youtubeFrame"
@@ -114,9 +108,7 @@
                 </div>
             </div>
 
-            <!-- RIGHT: Facecam + Loudness + controls -->
             <div class="space-y-4">
-                <!-- Facecam Card -->
                 <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700/50">
                     <h2 class="text-sm font-semibold mb-2 flex items-center gap-2">
                         <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
@@ -133,7 +125,6 @@
                     </div>
                 </div>
 
-                <!-- Loudness / Controls Card -->
                 <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700/50 flex flex-col" style="height: 285spx;">
                     <div>
                         <h2 class="text-sm font-semibold mb-2 flex items-center gap-2">
@@ -145,45 +136,12 @@
                     <div class="bg-black/50 rounded-xl p-3 mb-3 flex justify-center items-center" style="height: 210px;">
                         <canvas id="pitchVisualizer" width="275" height="210" class="rounded-lg"></canvas>
                     </div>
-
-                    <!-- Sensitivity control (kept from old functionality) -->
-                    <!-- <div class="bg-gray-700/30 rounded-xl p-3 mb-2">
-                        <label for="sensitivitySlider" class="block text-xs font-medium text-gray-300 mb-2">Sensitivity</label>
-                        <div class="flex flex-col items-center gap-2">
-                            <div class="flex items-center justify-between w-full text-xs text-gray-400 mb-1">
-                                <span>Low</span>
-                                <span class="text-lg font-bold text-green-400" id="sensitivityValue">5.0</span>
-                                <span>High</span>
-                            </div>
-                            <input type="range"
-                                   id="sensitivitySlider"
-                                   min="1"
-                                   max="10"
-                                   value="5"
-                                   step="0.5"
-                                   class="w-full">
-                        </div>
-                    </div> -->
-
-                    <!-- Status -->
-                    <!-- <div class="bg-gray-700/30 rounded-xl p-2 mt-auto">
-                        <div id="status" class="text-center text-xs text-gray-300">
-                            Requesting microphone access...
-                        </div>
-                        <div id="headTiltStatus" class="text-center text-xs text-gray-400 mt-1">
-                            Tilt head left/right to control video
-                        </div>
-                    </div> -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- SCRIPT: merged functionality (YouTube API, audio analysis, WebSocket, controls) -->
     <script>
-        /*******************************
-         * Shared audio / UI variables
-         *******************************/
         let audioContext;
         let analyser;
         let microphone;
@@ -198,29 +156,21 @@
         let smoothedVolume = 0;
         const smoothingFactor = 0.9;
 
-        // Tongue / head tilt control variables (keeps original variable names)
         let tongueWebSocket = null;
         let lastTongueAction = null;
-        let tongueActionCooldown = 1000; // ms
+        let tongueActionCooldown = 1000;
         let lastTongueActionTime = 0;
 
-        // YouTube player tracking variables
         let currentVideoTime = 0;
         let isPlaying = false;
         let youtubePlayerReady = false;
         let lastSeekTime = Date.now();
 
-        /*******************************
-         * YouTube iframe API helper
-         * (we use postMessage commands to control the embedded iframe)
-         *******************************/
         function onYouTubeIframeAPIReady() {
-            // Called by the YT API; mark player ready to allow requests
             youtubePlayerReady = true;
             console.log('✅ YouTube IFrame API ready');
         }
 
-        // Update YouTube volume via postMessage
         function updateYouTubeVolume(volume) {
             const iframe = document.getElementById('youtubeFrame');
             if (iframe && iframe.contentWindow) {
@@ -236,7 +186,6 @@
             }
         }
 
-        // Seek helpers (use estimated time if needed)
         function getEstimatedCurrentTime() {
             if (currentVideoTime > 0) {
                 return currentVideoTime;
@@ -283,16 +232,10 @@
             console.log(`⏯️ ${isPlaying ? 'Playing' : 'Paused'}`);
         }
 
-        /*******************************
-         * Listen for messages FROM the iframe (YouTube provides info messages)
-         *******************************/
         window.addEventListener('message', (event) => {
-            // Only accept messages that likely originate from youtube
-            // Some browsers send messages from other origins; we try-catch parsing safely
             try {
                 const data = (typeof event.data === 'string') ? JSON.parse(event.data) : event.data;
 
-                // YouTube sometimes sends { info: { currentTime: ..., playerState: ... } }
                 if (data.info) {
                     if (data.info.currentTime !== undefined) {
                         currentVideoTime = data.info.currentTime;
@@ -303,7 +246,6 @@
                     }
                 }
 
-                // Also check other common properties
                 if (data.currentTime !== undefined) {
                     currentVideoTime = data.currentTime;
                     lastSeekTime = Date.now();
@@ -317,11 +259,9 @@
                     console.log('✅ YouTube player ready (message received)');
                 }
             } catch (e) {
-                // ignore non-JSON or irrelevant messages
             }
         });
 
-        // Periodically request current time to keep tracking accurate
         setInterval(() => {
             const iframe = document.getElementById('youtubeFrame');
             if (iframe && iframe.contentWindow && youtubePlayerReady) {
@@ -330,15 +270,12 @@
                         event: 'command',
                         func: 'getCurrentTime'
                     }), 'https://www.youtube.com');
-                } catch (e) { /* ignore */ }
+                } catch (e) { }
             }
         }, 500);
 
-        /*******************************
-         * WebSocket for head-tilt (tongue) control
-         *******************************/
         function initTongueWebSocket() {
-            const wsUrl = 'ws://localhost:8765'; // same as original
+            const wsUrl = 'ws://localhost:8765';
             try {
                 tongueWebSocket = new WebSocket(wsUrl);
 
@@ -395,9 +332,6 @@
             }
         }
 
-        /*******************************
-         * Status helper
-         *******************************/
         function updateStatus(message) {
             const statusEl = document.getElementById('status');
             if (statusEl) {
@@ -405,9 +339,6 @@
             }
         }
 
-        /*******************************
-         * Audio / volume detection
-         *******************************/
         async function initAudio() {
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -498,20 +429,16 @@
 
             const position = volumePercent / 100;
 
-            // Vertical bar - centered horizontally
             const barWidth = 60;
             const barX = (width - barWidth) / 2;
             const barMargin = 30;
             const barHeight = height - (barMargin * 2);
 
-            // Draw background bar
             ctx.fillStyle = '#1f2937';
             ctx.fillRect(barX, barMargin, barWidth, barHeight);
 
-            // Calculate fill height from bottom
             const fillHeight = barHeight * position;
 
-            // Vertical gradient (green -> yellow -> red)
             const gradient = ctx.createLinearGradient(barX, barMargin + barHeight, barX, barMargin);
             gradient.addColorStop(0, '#10b981');
             gradient.addColorStop(0.5, '#f59e0b');
@@ -520,17 +447,14 @@
             ctx.fillStyle = gradient;
             ctx.fillRect(barX, barMargin + barHeight - fillHeight, barWidth, fillHeight);
 
-            // Draw border
             ctx.strokeStyle = '#374151';
             ctx.lineWidth = 2;
             ctx.strokeRect(barX, barMargin, barWidth, barHeight);
 
-            // Draw indicator line
             const indicatorY = barMargin + barHeight - fillHeight;
             ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#6b7280';
             ctx.fillRect(barX - 8, indicatorY - 2, barWidth + 16, 4);
 
-            // Draw volume label
             ctx.save();
             ctx.fillStyle = volumePercent > 0 ? '#ffffff' : '#9ca3af';
             ctx.font = 'bold 14px Inter, sans-serif';
@@ -538,7 +462,6 @@
             ctx.fillText(`${volumePercent}%`, width / 2, indicatorY - 8);
             ctx.restore();
 
-            // Top / bottom labels
             ctx.fillStyle = '#9ca3af';
             ctx.font = '12px Inter, sans-serif';
             ctx.textAlign = 'center';
@@ -553,9 +476,6 @@
             if (tongueWebSocket) tongueWebSocket.close();
         }
 
-        /*******************************
-         * Slider initialization
-         *******************************/
         function initSlider() {
             const sensitivitySlider = document.getElementById('sensitivitySlider');
             const sensitivityValue = document.getElementById('sensitivityValue');
@@ -579,9 +499,6 @@
             initSlider();
         }
 
-        /*******************************
-         * Load video button: convert URL to embed
-         *******************************/
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'loadVideoBtn') {
                 const input = document.getElementById('youtubeURLInput');
@@ -600,23 +517,12 @@
             }
         });
 
-        /*******************************
-         * Initialize everything
-         *******************************/
-        // Start audio/camera immediately (user must allow permissions)
         initAudio();
 
-        // Start YouTube-related heartbeat tracking after API loads
-        // onYouTubeIframeAPIReady will set youtubePlayerReady when loaded
-        // Also keep polling to ask for current time from player
         setTimeout(() => {
             initTongueWebSocket();
         }, 1000);
 
-        // Ask for current time from youtube frequently (keeps currentVideoTime fresh)
-        // (Interval already set above)
-
-        // Clean up on unload
         window.addEventListener('beforeunload', cleanup);
         window.addEventListener('unload', cleanup);
     </script>
